@@ -4,6 +4,35 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gita — Daily Verse</title>
+  <meta name="description" id="meta-description" content="Read the Bhagavad Gita daily — Sanskrit, Hindi, English, and purports. Browse 139 curated verses with chapter navigation.">
+  <link rel="canonical" id="canonical-link" href="">
+  <meta property="og:site_name" content="Gita — Daily Verse">
+  <meta property="og:title" id="og-title" content="Gita — Daily Verse">
+  <meta property="og:description" id="og-description" content="Read the Bhagavad Gita daily — Sanskrit, Hindi, English, and purports.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" id="og-url" content="">
+  <meta property="og:image" id="og-image" content="assets/og-default.svg">
+  <meta property="og:locale" content="en_IN">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" id="twitter-title" content="Gita — Daily Verse">
+  <meta name="twitter:description" id="twitter-description" content="Read the Bhagavad Gita daily — Sanskrit, Hindi, English, and purports.">
+  <meta name="twitter:image" id="twitter-image" content="assets/og-default.svg">
+  <script>
+    (function () {
+      var base = window.location.href.replace(/[#?].*$/, '').replace(/[^/]*$/, '');
+      ['og-image', 'twitter-image', 'og-url', 'canonical-link'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var attr = el.tagName === 'LINK' ? 'href' : 'content';
+        var val = el.getAttribute(attr);
+        if (!val) {
+          if (id === 'og-url' || id === 'canonical-link') el.setAttribute(attr, window.location.href.split('#')[0]);
+        } else if (val.indexOf('http') !== 0 && id.indexOf('image') >= 0) {
+          el.setAttribute(attr, base + val);
+        }
+      });
+    })();
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <script>
@@ -31,6 +60,16 @@
       <div class="sidebar-search-wrap">
         <input class="sidebar-search" type="search" id="sidebar-search" placeholder="Search chapter or verse…" autocomplete="off">
       </div>
+      <div class="sidebar-collections" id="sidebar-collections">
+        <div class="sb-col-section" id="sb-favorites-wrap" hidden>
+          <div class="sb-col-title">★ Favorites</div>
+          <div class="sb-col-list" id="sb-favorites"></div>
+        </div>
+        <div class="sb-col-section" id="sb-recent-wrap" hidden>
+          <div class="sb-col-title">Recent</div>
+          <div class="sb-col-list" id="sb-recent"></div>
+        </div>
+      </div>
       <nav class="sidebar-nav" id="sidebar-nav"></nav>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
@@ -56,6 +95,22 @@
       </div>
     </header>
 
+    <div class="reading-stats" id="reading-stats" aria-label="Reading progress">
+      <div class="reading-stat">
+        <span class="reading-stat-val" id="stat-progress">0 / 139</span>
+        <span class="reading-stat-label">Verses read</span>
+      </div>
+      <div class="reading-stat">
+        <span class="reading-stat-val" id="stat-streak">0</span>
+        <span class="reading-stat-label">Day streak</span>
+      </div>
+      <div class="reading-stat reading-stat--bar">
+        <div class="progress-bar" role="progressbar" id="progress-bar" aria-valuemin="0" aria-valuemax="139" aria-valuenow="0">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="date-nav">
       <button class="nav-btn" type="button" onclick="shiftDay(-1)" aria-label="Previous day">&#8249;</button>
       <div class="date-center">
@@ -67,9 +122,12 @@
 
     <div class="verse-card">
       <div class="card-meta">
-        <span class="meta-chapter" id="m-chapter">—</span>
-        <span class="meta-verse" id="m-verse">—</span>
-        <span class="meta-speaker" id="m-speaker">—</span>
+        <div class="meta-group">
+          <span class="meta-chapter" id="m-chapter">—</span>
+          <span class="meta-verse" id="m-verse">—</span>
+          <span class="meta-speaker" id="m-speaker">—</span>
+        </div>
+        <button class="fav-btn" type="button" id="fav-btn" aria-label="Add to favorites" aria-pressed="false" title="Save to favorites">&#9734;</button>
       </div>
 
       <div class="tabs">
@@ -117,6 +175,7 @@
         <button class="btn btn-gold" type="button" onclick="doDownload('square')">↓ Download 1:1</button>
         <button class="btn btn-gold" type="button" onclick="doDownload('story')" title="Instagram Story · 9:16 portrait">↓ Story 9:16</button>
         <button class="btn btn-outline" type="button" onclick="doCopy()">⎘ Copy Text</button>
+        <button class="btn btn-outline" type="button" onclick="doCopyLink()">&#128279; Copy Link</button>
         <button class="btn btn-ghost" type="button" onclick="doShare()">↗ Share</button>
       </div>
     </div>

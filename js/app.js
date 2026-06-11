@@ -4,6 +4,292 @@
 let offset = 0;
 let currentKey = null;
 let imgFmt = 'both'; // 'hindi' | 'english' | 'both'
+let skipNextUrlPush = false;
+
+const READING_KEY = 'gita-reading';
+const RECENT_MAX = 12;
+const TOTAL_VERSES = Object.keys(VERSES).length;
+
+const DEFAULT_READING = {
+  read: [],
+  favorites: [],
+  recent: [],
+  streak: 0,
+  lastReadDate: null,
+};
+
+let readingState = loadReadingState();
+
+function loadReadingState() {
+  try {
+    const raw = localStorage.getItem(READING_KEY);
+    if (raw) return { ...DEFAULT_READING, ...JSON.parse(raw) };
+  } catch (_) { /* ignore */ }
+  return { ...DEFAULT_READING };
+}
+
+function saveReadingState() {
+  localStorage.setItem(READING_KEY, JSON.stringify(readingState));
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function yesterdayISO() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function recordReading(key) {
+  if (!key || !VERSES[key]) return;
+
+  if (!readingState.read.includes(key)) {
+    readingState.read.push(key);
+  }
+
+  readingState.recent = [key, ...readingState.recent.filter(k => k !== key)].slice(0, RECENT_MAX);
+
+  const today = todayISO();
+  const last = readingState.lastReadDate;
+
+  if (last !== today) {
+    if (last === yesterdayISO()) readingState.streak = (readingState.streak || 0) + 1;
+    else readingState.streak = 1;
+    readingState.lastReadDate = today;
+  }
+
+  saveReadingState();
+  updateReadingUI();
+  renderSidebarCollections();
+}
+
+function isFavorite(key) {
+  return readingState.favorites.includes(key);
+}
+
+function toggleFavorite(key = currentKey) {
+  if (!key || !VERSES[key]) return;
+
+  const idx = readingState.favorites.indexOf(key);
+  if (idx >= 0) {
+    readingState.favorites.splice(idx, 1);
+    toast('Removed from favorites');
+  } else {
+    readingState.favorites.unshift(key);
+    toast('Saved to favorites');
+  }
+
+  saveReadingState();
+  updateFavoriteButton(key);
+  renderSidebarCollections();
+}
+
+function updateFavoriteButton(key = currentKey) {
+  const btn = document.getElementById('fav-btn');
+  if (!btn) return;
+  const on = isFavorite(key);
+  btn.classList.toggle('on', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.setAttribute('aria-label', on ? 'Remove from favorites' : 'Add to favorites');
+  btn.title = on ? 'Remove from favorites' : 'Save to favorites';
+  btn.innerHTML = on ? '&#9733;' : '&#9734;';
+}
+
+function updateReadingUI() {
+  const readCount = readingState.read.length;
+  const total = TOTAL_VERSES;
+  const pct = total ? Math.round((readCount / total) * 100) : 0;
+
+  const prog = document.getElementById('stat-progress');
+  const streak = document.getElementById('stat-streak');
+  const fill = document.getElementById('progress-fill');
+  const bar = document.getElementById('progress-bar');
+
+  if (prog) prog.textContent = `${readCount} / ${total}`;
+  if (streak) streak.textContent = String(readingState.streak || 0);
+  if (fill) fill.style.width = `${pct}%`;
+  if (bar) {
+    bar.setAttribute('aria-valuemax', String(total));
+    bar.setAttribute('aria-valuenow', String(readCount));
+    bar.setAttribute('aria-valuetext', `${readCount} of ${total} verses read`);
+  }
+}
+
+function renderSidebarCollections() {
+  const favWrap = document.getElementById('sb-favorites-wrap');
+  const favList = document.getElementById('sb-favorites');
+  const recentWrap = document.getElementById('sb-recent-wrap');
+  const recentList = document.getElementById('sb-recent');
+
+  if (favList) {
+    favList.innerHTML = '';
+    readingState.favorites.forEach(key => {
+      if (!VERSES[key]) return;
+      favList.appendChild(makeCollectionChip(key, { removable: true }));
+    });
+    favWrap?.toggleAttribute('hidden', !readingState.favorites.length);
+  }
+
+  if (recentList) {
+    recentList.innerHTML = '';
+    readingState.recent.forEach(key => {
+      if (!VERSES[key]) return;
+      recentList.appendChild(makeCollectionChip(key));
+    });
+    recentWrap?.toggleAttribute('hidden', !readingState.recent.length);
+  }
+}
+
+function makeCollectionChip(key, { removable = false } = {}) {
+  const vd = VERSES[key];
+  const ch = CHAPTERS[vd.ch - 1];
+  const wrap = document.createElement('div');
+  wrap.className = 'sb-col-chip';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'sb-col-verse' + (key === currentKey ? ' on' : '');
+  btn.dataset.key = key;
+  btn.innerHTML =
+    `<span class="sb-col-ref">${key}</span>` +
+    `<span class="sb-col-hi">${ch.hi}</span>`;
+  btn.addEventListener('click', () => goToVerse(key));
+
+  wrap.appendChild(btn);
+
+  if (removable) {
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'sb-col-remove';
+    rm.setAttribute('aria-label', `Remove ${key} from favorites`);
+    rm.textContent = '×';
+    rm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      readingState.favorites = readingState.favorites.filter(k => k !== key);
+      saveReadingState();
+      updateFavoriteButton();
+      renderSidebarCollections();
+    });
+    wrap.appendChild(rm);
+  }
+
+  return wrap;
+}
+
+function initReadingUI() {
+  updateReadingUI();
+  updateFavoriteButton();
+  renderSidebarCollections();
+
+  document.getElementById('fav-btn')?.addEventListener('click', () => toggleFavorite());
+
+  window.addEventListener('popstate', () => {
+    const key = parseVerseFromUrl();
+    if (key) {
+      skipNextUrlPush = true;
+      goToVerse(key, { scrollMain: false, updateUrl: false });
+    } else {
+      skipNextUrlPush = true;
+      shiftDay(0, true);
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// URL DEEP LINKS & META
+// ─────────────────────────────────────────────
+function resolveAssetUrl(relativePath) {
+  return new URL(relativePath, window.location.href).href;
+}
+
+function normalizeVerseKey(raw) {
+  if (!raw) return null;
+  const key = String(raw).trim().replace('-', '.');
+  return VERSES[key] ? key : null;
+}
+
+function parseVerseFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  let v = params.get('v');
+  if (!v && window.location.hash) {
+    const hash = window.location.hash.replace(/^#\/?(v=)?/, '');
+    if (/^\d+[.\-]\d+$/.test(hash)) v = hash;
+  }
+  return normalizeVerseKey(v);
+}
+
+function buildVerseUrl(key) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('v', key);
+  url.hash = '';
+  return url.pathname + url.search;
+}
+
+function syncUrlForVerse(key, { push = false } = {}) {
+  if (!key || !VERSES[key]) return;
+  const path = buildVerseUrl(key);
+  const state = { v: key };
+
+  if (push) history.pushState(state, '', path);
+  else history.replaceState(state, '', path);
+
+  updatePageMeta(key);
+}
+
+function updatePageMeta(key) {
+  const vd = VERSES[key];
+  if (!vd) return;
+
+  const ch = CHAPTERS[vd.ch - 1];
+  const title = `Gita ${vd.ch}.${vd.v} — ${ch.en}`;
+  const desc = vd.en.length > 180 ? vd.en.slice(0, 177) + '…' : vd.en;
+  const url = new URL(buildVerseUrl(key), window.location.origin).href;
+  const image = resolveAssetUrl('assets/og-default.svg');
+
+  document.title = title;
+
+  const setMeta = (id, content) => {
+    const el = document.getElementById(id);
+    if (el) {
+      if (el.tagName === 'META') el.setAttribute('content', content);
+      else el.setAttribute('href', content);
+    }
+  };
+
+  setMeta('meta-description', `${desc} — Bhagavad Gita ${vd.ch}.${vd.v}.`);
+  setMeta('og-title', title);
+  setMeta('og-description', desc);
+  setMeta('og-url', url);
+  setMeta('og-image', image);
+  setMeta('twitter-title', title);
+  setMeta('twitter-description', desc);
+  setMeta('twitter-image', image);
+  setMeta('canonical-link', url);
+}
+
+function initPageMeta() {
+  const key = parseVerseFromUrl();
+  if (key) updatePageMeta(key);
+  else {
+    const image = resolveAssetUrl('assets/og-default.svg');
+    const url = window.location.href.split('#')[0];
+    document.getElementById('og-url')?.setAttribute('content', url);
+    document.getElementById('og-image')?.setAttribute('content', image);
+    document.getElementById('twitter-image')?.setAttribute('content', image);
+    document.getElementById('canonical-link')?.setAttribute('href', url);
+  }
+}
+
+function getShareUrl(key = currentKey) {
+  return new URL(buildVerseUrl(key), window.location.origin).href;
+}
+
+function doCopyLink() {
+  if (!currentKey) return;
+  navigator.clipboard.writeText(getShareUrl()).then(() => toast('Link copied'));
+}
 
 // ─────────────────────────────────────────────
 // THEME
@@ -88,7 +374,15 @@ window.addEventListener('load', () => {
   initGlossaryTips();
   initSidebar();
   buildGrid();
-  shiftDay(0, true);
+  initReadingUI();
+  initPageMeta();
+
+  const deepLink = parseVerseFromUrl();
+  if (deepLink) {
+    goToVerse(deepLink, { scrollMain: false, pushUrl: false });
+  } else {
+    shiftDay(0, true);
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -105,13 +399,15 @@ function shiftDay(delta, reset=false) {
 
   const start = new Date(d.getFullYear(), 0, 0);
   const doy = Math.floor((d - start) / 86400000);
-  loadVerse(ROTATION[doy % ROTATION.length]);
+  const key = ROTATION[doy % ROTATION.length];
+  loadVerse(key, { updateUrl: !skipNextUrlPush, pushUrl: false });
+  skipNextUrlPush = false;
 }
 
 // ─────────────────────────────────────────────
 // LOAD VERSE
 // ─────────────────────────────────────────────
-function loadVerse(key) {
+function loadVerse(key, { updateUrl = true, pushUrl = false } = {}) {
   currentKey = key;
   const vd = VERSES[key];
   const ch = CHAPTERS[vd.ch - 1];
@@ -140,6 +436,12 @@ function loadVerse(key) {
 
   syncSidebar(key);
   syncBottomGrid(key);
+  recordReading(key);
+  updateFavoriteButton(key);
+  renderSidebarCollections();
+
+  if (updateUrl) syncUrlForVerse(key, { push: pushUrl });
+  else updatePageMeta(key);
 }
 
 function setText(id, txt) {
@@ -186,8 +488,8 @@ function versesForChapter(n) {
     .sort((a, b) => VERSES[a].v - VERSES[b].v);
 }
 
-function goToVerse(key, { closeSidebar = true, scrollMain = true } = {}) {
-  loadVerse(key);
+function goToVerse(key, { closeSidebar = true, scrollMain = true, updateUrl = true, pushUrl = true } = {}) {
+  loadVerse(key, { updateUrl, pushUrl });
   if (closeSidebar && !isDesktopNav()) closeSidebarPanel();
   if (scrollMain) {
     document.querySelector('.verse-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -680,8 +982,12 @@ function doCopy() {
 function doShare() {
   const vd = VERSES[currentKey];
   const t = `${vd.skt}\n\n"${vd.en}"\n— Gita ${vd.ch}.${vd.v}`;
-  if (navigator.share) navigator.share({title:'Daily Gita', text:t});
-  else { navigator.clipboard.writeText(t); toast('Copied for sharing'); }
+  const shareUrl = getShareUrl();
+  if (navigator.share) {
+    navigator.share({ title: `Gita ${vd.ch}.${vd.v}`, text: t, url: shareUrl });
+  } else {
+    navigator.clipboard.writeText(`${t}\n\n${shareUrl}`).then(() => toast('Copied for sharing'));
+  }
 }
 
 // ─────────────────────────────────────────────
