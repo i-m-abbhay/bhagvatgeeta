@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gita — Daily Verse</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    (function () {
+      var saved = localStorage.getItem('gita-theme');
+      var theme = saved === 'light' || saved === 'dark'
+        ? saved
+        : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+</head>
+<body>
+  <canvas id="qcanvas"></canvas>
+
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Shloka browser">
+      <div class="sidebar-head">
+        <div>
+          <div class="sidebar-title">Browse Shlokas</div>
+          <div class="sidebar-sub">अध्याय · श्लोक</div>
+        </div>
+        <button class="sidebar-close" type="button" id="sidebar-close" aria-label="Close navigation">&#10005;</button>
+      </div>
+      <div class="sidebar-search-wrap">
+        <input class="sidebar-search" type="search" id="sidebar-search" placeholder="Search chapter or verse…" autocomplete="off">
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+
+    <main class="main-content">
+  <div class="wrap">
+    <header>
+      <div class="header-left">
+        <button class="sidebar-toggle" type="button" id="sidebar-toggle" aria-label="Open shloka browser" aria-expanded="false">
+          <span aria-hidden="true">&#9776;</span>
+        </button>
+        <div>
+          <div class="site-name">Gita</div>
+          <div class="site-sub">Daily Verse · दैनिक श्लोक</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" type="button" id="theme-toggle" aria-label="Switch to light mode" title="Light mode">
+          <span class="theme-icon theme-icon--sun" aria-hidden="true">&#9728;</span>
+          <span class="theme-icon theme-icon--moon" aria-hidden="true">&#9790;</span>
+        </button>
+        <span class="om">ॐ</span>
+      </div>
+    </header>
+
+    <div class="date-nav">
+      <button class="nav-btn" type="button" onclick="shiftDay(-1)" aria-label="Previous day">&#8249;</button>
+      <div class="date-center">
+        <div class="date-str" id="date-str">—</div>
+        <button class="today-btn" type="button" onclick="shiftDay(0, true)">Today</button>
+      </div>
+      <button class="nav-btn" type="button" onclick="shiftDay(1)" aria-label="Next day">&#8250;</button>
+    </div>
+
+    <div class="verse-card">
+      <div class="card-meta">
+        <span class="meta-chapter" id="m-chapter">—</span>
+        <span class="meta-verse" id="m-verse">—</span>
+        <span class="meta-speaker" id="m-speaker">—</span>
+      </div>
+
+      <div class="tabs">
+        <button class="tab on" type="button" data-tab="both" onclick="switchTab('both', this)">Both</button>
+        <button class="tab" type="button" data-tab="hindi" onclick="switchTab('hindi', this)">हिन्दी</button>
+        <button class="tab" type="button" data-tab="english" onclick="switchTab('english', this)">English</button>
+      </div>
+
+      <div class="panel on" id="p-both">
+        <div class="skt" id="b-skt"></div>
+        <div class="trlit" id="b-trlit"></div>
+        <div class="sec-label">Hindi</div>
+        <div class="hi-text" id="b-hi"></div>
+        <div class="sec-label">English</div>
+        <div class="en-text" id="b-en"></div>
+        <div class="sec-label">Purport · तात्पर्य</div>
+        <div class="purport-hi" id="b-pur-hi"></div>
+      </div>
+
+      <div class="panel" id="p-hindi">
+        <div class="skt" id="h-skt"></div>
+        <div class="sec-label">अर्थ</div>
+        <div class="hi-text" id="h-hi"></div>
+        <div class="sec-label">तात्पर्य</div>
+        <div class="purport-hi" id="h-pur"></div>
+      </div>
+
+      <div class="panel" id="p-english">
+        <div class="skt" id="e-skt"></div>
+        <div class="trlit" id="e-trlit"></div>
+        <div class="sec-label">Translation</div>
+        <div class="en-text" id="e-en"></div>
+        <div class="sec-label">Purport</div>
+        <div class="purport" id="e-pur"></div>
+      </div>
+
+      <div class="img-opts">
+        <span class="img-opts-label">Export as</span>
+        <button class="fmt-btn" type="button" data-fmt="hindi" onclick="setFmt('hindi', this)">हिन्दी</button>
+        <button class="fmt-btn on" type="button" data-fmt="both" onclick="setFmt('both', this)">Hi + En</button>
+        <button class="fmt-btn" type="button" data-fmt="english" onclick="setFmt('english', this)">English</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-gold" type="button" onclick="doDownload('square')">↓ Download 1:1</button>
+        <button class="btn btn-gold" type="button" onclick="doDownload('story')" title="Instagram Story · 9:16 portrait">↓ Story 9:16</button>
+        <button class="btn btn-outline" type="button" onclick="doCopy()">⎘ Copy Text</button>
+        <button class="btn btn-ghost" type="button" onclick="doShare()">↗ Share</button>
+      </div>
+    </div>
+
+    <div class="section-title">Browse Chapters</div>
+    <div class="chapter-grid" id="ch-grid"></div>
+    <div class="verse-row" id="verse-row"></div>
+
+    <footer>
+      <p>श्रीमद्भगवद्गीता &nbsp;·&nbsp; यतो धर्मस्ततो जयः</p>
+    </footer>
+  </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/data.js" defer></script>
+  <script src="js/glossary.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
