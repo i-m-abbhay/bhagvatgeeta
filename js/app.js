@@ -292,6 +292,7 @@ function closeSidebarPanel() {
   backdrop?.setAttribute('hidden', '');
   document.body.classList.remove('sidebar-open');
   document.getElementById('sidebar-toggle')?.setAttribute('aria-expanded', 'false');
+  hideChapterInfo();
 }
 
 function filterSidebar(query) {
@@ -494,6 +495,7 @@ function initChapterInfoCard() {
 
   window.addEventListener('scroll', repositionChapterInfoCard, true);
   window.addEventListener('resize', repositionChapterInfoCard);
+  document.getElementById('sidebar-nav')?.addEventListener('scroll', repositionChapterInfoCard);
 }
 
 function bindChapterInfo(el, chNum) {
@@ -543,7 +545,10 @@ function showChapterInfo(n, anchor) {
   const card = document.getElementById('ch-info-card');
   card.hidden = false;
   card.classList.add('show');
-  repositionChapterInfoCard();
+  requestAnimationFrame(() => {
+    repositionChapterInfoCard();
+    requestAnimationFrame(repositionChapterInfoCard);
+  });
 }
 
 function repositionChapterInfoCard() {
@@ -551,27 +556,50 @@ function repositionChapterInfoCard() {
   if (!card || card.hidden || !infoAnchor) return;
 
   const rect = infoAnchor.getBoundingClientRect();
-  const cardW = card.offsetWidth;
-  const cardH = card.offsetHeight;
   const gap = 14;
   const pad = 12;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-
   const fromSidebar = infoAnchor.classList.contains('sb-ch-toggle');
+  const mobileSidebar = fromSidebar && !isDesktopNav();
+
+  card.style.width = '';
+  card.style.maxWidth = '';
+
   let left;
   let top;
 
-  if (fromSidebar) {
+  if (mobileSidebar) {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarRect = sidebar?.getBoundingClientRect();
+    const chapterBlock = infoAnchor.closest('.sb-chapter');
+    const blockRect = chapterBlock?.getBoundingClientRect() || rect;
+    const innerW = (sidebarRect?.width ?? vw) - pad * 2;
+
+    card.style.width = `${Math.min(320, innerW)}px`;
+    left = (sidebarRect?.left ?? pad) + pad;
+
+    if (chapterBlock?.classList.contains('open')) {
+      top = blockRect.bottom + gap;
+    } else {
+      top = rect.bottom + gap;
+    }
+
+    if (top + card.offsetHeight > vh - pad) {
+      top = rect.top - card.offsetHeight - gap;
+    }
+  } else if (fromSidebar) {
     left = rect.right + gap;
     top = rect.top;
-    if (left + cardW > vw - pad) left = rect.left - cardW - gap;
+    if (left + card.offsetWidth > vw - pad) left = rect.left - card.offsetWidth - gap;
   } else {
-    left = rect.left + rect.width / 2 - cardW / 2;
+    left = rect.left + rect.width / 2 - card.offsetWidth / 2;
     top = rect.bottom + gap;
-    if (top + cardH > vh - pad) top = rect.top - cardH - gap;
+    if (top + card.offsetHeight > vh - pad) top = rect.top - card.offsetHeight - gap;
   }
 
+  const cardW = card.offsetWidth;
+  const cardH = card.offsetHeight;
   left = Math.max(pad, Math.min(left, vw - cardW - pad));
   top = Math.max(pad, Math.min(top, vh - cardH - pad));
 
